@@ -1,0 +1,15 @@
+# Realtime Voice Loan Onboarding Agent — Python worker
+# Pinned and verified against installed package on 2026-06-24 (livekit-agents 1.6.3, Form A API).
+livekit-agents[deepgram,silero,turn-detector]==1.6.3
+livekit-plugins-openai==1.6.3
+livekit-plugins-bey==1.6.3
+python-dotenv==1.2.2
+
+# TTS: Deepgram Aura (reuses DEEPGRAM_API_KEY — no Cartesia key in this setup)
+# LLM: OpenRouter via openai plugin (base_url=https://openrouter.ai/api/v1)
+#   Phase 2 note: switch to livekit-plugins-google + native GOOGLE_API_KEY when
+#   real tools are wired — OpenRouter can break streaming tool-calls in the voice loop.
+#
+# Deprecated in 1.6.3 (still functional):
+#   livekit-plugins-silero        -> AgentSession bundles Silero VAD
+#   livekit-plugins-turn-detector -> use inference.TurnDetector in v2
