@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ken, Loan Agent</title>
+  <script src="https://unpkg.com/livekit-client@2.20.0/dist/livekit-client.umd.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f0f13;
+      color: #e8e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: #1a1a24;
+      border: 1px solid #2a2a3a;
+      border-radius: 16px;
+      padding: 40px;
+      width: 100%;
+      max-width: 520px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+    .logo {
+      font-size: 22px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.3px;
+    }
+    .logo span { color: #6c6cff; }
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      color: #9090a8;
+    }
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #444;
+      transition: background 0.3s;
+      flex-shrink: 0;
+    }
+    .dot.connected { background: #3ecf8e; }
+    .dot.speaking  { background: #6c6cff; animation: pulse 1s infinite; }
+    .dot.listening { background: #f59e0b; }
+    @keyframes pulse {
+      0%,100% { opacity: 1; }
+      50%      { opacity: 0.4; }
+    }
+    .transcript-box {
+      background: #12121a;
+      border: 1px solid #22223a;
+      border-radius: 10px;
+      padding: 16px;
+      min-height: 160px;
+      max-height: 260px;
+      overflow-y: auto;
+      font-size: 14px;
+      line-height: 1.6;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .transcript-box .empty {
+      color: #44445a;
+      font-style: italic;
+      margin: auto;
+      text-align: center;
+    }
+    .msg { display: flex; flex-direction: column; gap: 2px; }
+    .msg .role { font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; }
+    .msg.agent .role { color: #6c6cff; }
+    .msg.user  .role { color: #3ecf8e; }
+    .msg .text { color: #d0d0e8; }
+    .btn {
+      padding: 14px 24px;
+      border-radius: 10px;
+      border: none;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s, background 0.2s;
+      width: 100%;
+    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-connect    { background: #6c6cff; color: #fff; }
+    .btn-connect:hover:not(:disabled) { background: #5a5ae8; }
+    .btn-disconnect { background: #2a1a1a; color: #f87171; border: 1px solid #3a1a1a; }
+    .btn-disconnect:hover:not(:disabled) { background: #3a1a1a; }
+    .room-input {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .room-input label { font-size: 13px; color: #9090a8; white-space: nowrap; }
+    .room-input input {
+      flex: 1;
+      background: #12121a;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: #e8e8f0;
+      font-size: 14px;
+      outline: none;
+    }
+    .room-input input:focus { border-color: #6c6cff; }
+    .note {
+      font-size: 12px;
+      color: #44445a;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">Ken<span>.</span> Loan Agent <span style="font-size:13px;font-weight:400;color:#44445a;">Phase 0</span></div>
+
+    <div class="room-input">
+      <label for="roomInput">Room</label>
+      <input id="roomInput" value="loan-demo" placeholder="room name" />
+    </div>
+
+    <div class="status-row">
+      <div class="dot" id="statusDot"></div>
+      <span id="statusText">Not connected</span>
+    </div>
+
+    <div class="transcript-box" id="transcript">
+      <span class="empty" id="emptyMsg">Ken will greet you when you connect...</span>
+    </div>
+
+    <button class="btn btn-connect" id="connectBtn" onclick="handleConnect()">
+      Connect to Ken
+    </button>
+    <button class="btn btn-disconnect" id="disconnectBtn" onclick="handleDisconnect()" style="display:none">
+      End Call
+    </button>
+
+    <div class="note">⚠️ Use headphones, AEC is browser-side. Test with headphones first.</div>
+  </div>
+
+  <!-- hidden audio container -->
+  <div id="audioContainer" style="display:none"></div>
+
+  <script>
+    // Use LivekitClient.* directly, avoids UMD temporal dead zone issues
+    // that occur when destructuring at the top level of a script tag.
+    let room = null;
+
+    function setStatus(label, state) {
+      document.getElementById('statusText').textContent = label;
+      const dot = document.getElementById('statusDot');
+      dot.className = 'dot' + (state ? ' ' + state : '');
+    }
+
+    function addMessage(role, text) {
+      const box = document.getElementById('transcript');
+      const empty = document.getElementById('emptyMsg');
+      if (empty) empty.remove();
+
+      const msg = document.createElement('div');
+      msg.className = 'msg ' + role;
+      msg.innerHTML = `<span class="role">${role === 'agent' ? 'Ken' : 'You'}</span><span class="text">${text}</span>`;
+      box.appendChild(msg);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    async function handleConnect() {
+      const roomName = document.getElementById('roomInput').value.trim() || 'loan-demo';
+      document.getElementById('connectBtn').disabled = true;
+      setStatus('Fetching token...', '');
+
+      try {
+        const res = await fetch(`/token?room=${encodeURIComponent(roomName)}`);
+        const { token, url } = await res.json();
+
+        room = new LivekitClient.Room();
+
+        room.on(LivekitClient.RoomEvent.Connected, () => {
+          setStatus('Connected, waiting for Ken...', 'connected');
+          document.getElementById('connectBtn').style.display = 'none';
+          document.getElementById('disconnectBtn').style.display = 'block';
+          document.getElementById('roomInput').disabled = true;
+        });
+
+        room.on(LivekitClient.RoomEvent.Disconnected, () => {
+          setStatus('Disconnected', '');
+          document.getElementById('connectBtn').style.display = 'block';
+          document.getElementById('connectBtn').disabled = false;
+          document.getElementById('disconnectBtn').style.display = 'none';
+          document.getElementById('roomInput').disabled = false;
+          document.getElementById('audioContainer').innerHTML = '';
+        });
+
+        // Play agent audio when it arrives
+        room.on(LivekitClient.RoomEvent.TrackSubscribed, (track, pub, participant) => {
+          if (track.kind === LivekitClient.Track.Kind.Audio) {
+            const el = track.attach();
+            document.getElementById('audioContainer').appendChild(el);
+            setStatus('Connected, Ken is active', 'speaking');
+          }
+        });
+
+        room.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track) => {
+          track.detach();
+        });
+
+        // Agent speaking state (visual feedback)
+        room.on(LivekitClient.RoomEvent.ActiveSpeakersChanged, (speakers) => {
+          const agentSpeaking = speakers.some(s => s.isAgent);
+          const youSpeaking   = speakers.some(s => s.isLocal);
+          if (agentSpeaking)    setStatus('Ken is speaking...', 'speaking');
+          else if (youSpeaking) setStatus('Listening to you...', 'listening');
+          else                  setStatus('Connected, Ken is active', 'connected');
+        });
+
+        // Data messages, transcript from agent (Phase 1+ will send these)
+        room.on(LivekitClient.RoomEvent.DataReceived, (data, participant) => {
+          try {
+            const msg = JSON.parse(new TextDecoder().decode(data));
+            if (msg.type === 'transcript') {
+              addMessage(msg.role || 'agent', msg.text || '');
+            }
+          } catch (_) {}
+        });
+
+        // Connect to LiveKit Cloud
+        await room.connect(url, token);
+
+        // Publish mic with browser AEC enabled, critical to prevent the agent
+        // hearing itself and looping. Test with headphones if AEC is unclear.
+        const micTrack = await LivekitClient.createLocalAudioTrack({
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        });
+        await room.localParticipant.publishTrack(micTrack);
+
+      } catch (err) {
+        setStatus('Error: ' + err.message, '');
+        document.getElementById('connectBtn').disabled = false;
+        console.error(err);
+      }
+    }
+
+    async function handleDisconnect() {
+      if (room) await room.disconnect();
+      room = null;
+    }
+  </script>
+</body>
+</html>
