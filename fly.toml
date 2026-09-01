@@ -1,17 +1,17 @@
-# fly.toml app configuration file generated for anoxxa-live on 2026-09-01T17:55:52Z
+# fly.toml app configuration file generated for anoxxa-live on 2026-09-01T18:16:21Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
 app = 'anoxxa-live'
-primary_region = 'iad'
+primary_region = 'bom'
 
 [build]
 
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = 'stop'
+  auto_stop_machines = true
   auto_start_machines = true
   min_machines_running = 0
   processes = ['app']
