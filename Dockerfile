@@ -20,6 +20,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN python -m agent.main download-files
 
 CMD ["python", "-m", "agent.main", "start"]
