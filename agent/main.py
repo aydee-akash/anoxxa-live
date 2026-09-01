@@ -36,7 +36,7 @@ from livekit.agents import (
 )
 from livekit.plugins import deepgram, silero
 from livekit.plugins import openai as lk_openai
-from livekit.plugins.turn_detector.multilingual import MultilingualModel
+
 
 from . import config
 from .prompts.system_prompts import SYSTEM_PROMPT
@@ -79,7 +79,7 @@ async def entrypoint(ctx: JobContext) -> None:
             api_key=config.DEEPGRAM_API_KEY,
         ),
         vad=ctx.proc.userdata["vad"],
-        turn_detection=MultilingualModel(),
+       
         # Tuned for hesitant Bharat users — longer end-of-turn delay, barge-in on,
         # false interruptions (cough/echo) rejected and resumed from.
         min_endpointing_delay=config.MIN_ENDPOINTING_DELAY,
